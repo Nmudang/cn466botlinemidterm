@@ -55,8 +55,8 @@ mqttClient.on('connect', () => {
 mqttClient.on('message', (topic, payload) => {
     console.log('Received Message:', topic, payload.toString())
     payloads = JSON.parse(payload.toString());
-    const rd = ((Math.random() * 50) + payloads.temperature).toFixed(2);
-    if (rd > 90) {
+    // const rd = ((Math.random() * 50) + payloads.temperature).toFixed(2);
+    if (payloads.temperature > 120) {
       sendAuto(rd)
     }
     //lineClient.pushMessage('U08f0bbbec3cc9ea46afb87366a82763f', { type: 'text', text: 'hello, world' });
@@ -64,7 +64,9 @@ mqttClient.on('message', (topic, payload) => {
 
 
 async function sendAuto(temp) {
-    let echo = {type: 'text', text: `อุณหภูมิ ${temp} องศาเซลเซียส *สูงเกินไป*` };
+  new Date().toLocaleString( { timeZone: 'Asia/Bangkok' }).slice(0, 19).replace('T', ' ');
+  
+    let echo = {type: 'text', text: `อุณหภูมิ ${temp} องศาเซลเซียส *สูงเกินไป* ณ เวลา ${await new Date().toLocaleString( 'th-TH', { timeZone: 'Asia/Bangkok' }).slice(0, 19).replace('T', ' ')}` };
     const dbRef = ref(getDatabase());
     let results;
     await get(child(dbRef, `users/`)).then((snapshot) => {
@@ -146,44 +148,24 @@ function writeUserData(userId, sensor) {
 function writeTempData(userId, temperature, humidity, confirm) {
   const db = getDatabase(firebase_app);
 
-  // let d = new Date();
-  // let n = d.toString().slice(0, 25).replaceAll(' ','').replaceAll(':','')
-  // let shuffled = n.split('').sort(function(){return 0.5-Math.random()}).join('');
+  let d = new Date();
+  let n = d.toString().slice(0, 25);
+  try {
+    n = n.replaceAll(' ','')
+    n = n.replaceAll(':','') 
+  } catch {
+    n = n.replace(/ /g, '');
+    n = n.replace(/:/g, '');
+  }
+  let shuffled = n.split('').sort(function(){return 0.5-Math.random()}).join('');
 
-  set(ref(db, 'temperatures/' + userId), {
+  set(ref(db, `temperatures/${userId}${shuffled}`), {
     temperature: temperature,
     humidity: humidity,
-    time: new Date().toISOString().slice(0, 19).replace('T', ' '),
+    time: d.toISOString().slice(0, 19).replace('T', ' '),
     confirm: confirm
   });
 }
-/*
-app.get('/dbuser', async (req, res) => {
-    try {
-      const client = await pool.connect();
-      const result = await client.query('SELECT * FROM users');
-      const results = { 'results': (result) ? result.rows : null};
-      res.send(results);
-      client.release();
-    } catch (err) {
-      console.error(err);
-      res.send("Error " + err);
-    }
-  })
-
-  app.get('/dbtemp', async (req, res) => {
-    try {
-      const client = await pool.connect();
-      const result = await client.query('SELECT * FROM weathers');
-      const results = { 'results': (result) ? result.rows : null};
-      res.send(results);
-      client.release();
-    } catch (err) {
-      console.error(err);
-      res.send("Error " + err);
-    }
-  })
-*/
 app.post('/callback', line.middleware(lineConfig), (req, res) => {
     if (req.body.destination) {
         console.log("Destination User ID: " + req.body.destination);
@@ -231,7 +213,8 @@ async function handleEvent(event) {
             // const rest = await insertTemp(payloads.temperature,event.source.userId,payloads.humidity,'NO');
             const rest = await writeTempData(event.source.userId, payloads.temperature,payloads.humidity,'NO');
         }
-        catch {
+        catch (err){
+            console.log(err)
             console.log("no data")
         }
         let echo = {type: 'text', text: `อุณหภูมิ ${payloads.temperature} องศาเซลเซียส` }; 
